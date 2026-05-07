@@ -170,7 +170,7 @@ export const START_TYPE_DEFINITIONS = {
     weight: 0.3,
     build: () => [
       ...repeatValues([5, 6, 7, 8, 9], 10),
-      ...repeatValues([16, 17, 18, 19, 20], 10),
+      ...repeatValues([15, 16, 17, 18, 19], 10),
     ],
   },
 };
