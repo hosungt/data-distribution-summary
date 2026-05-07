@@ -146,9 +146,9 @@ export function sampleRandomStartData({ n = 100, rand = Math.random } = {}) {
 }
 
 // ---------- Level 2, 3 의 Start — 유형 G/H/I 중 가중 무작위 선택 ----------
-// G: 11~15 각 20개 (중앙 집중), 합 100
+// G: 8·17 각 5개 + 9·10·11 각 10개 + 12·13 각 15개 + 14·15·16 각 10개 (중앙 집중 산형), 합 100
 // H: 0~4 각 10개 + 21~25 각 10개 (양 끝 분리), 합 100
-// I: 5~9 각 10개 + 16~20 각 10개 (가운데 비움), 합 100
+// I: 5~9 각 10개 + 15~19 각 10개 (가운데 비움), 합 100
 function repeatValues(values, count) {
   const out = [];
   for (const v of values) {
@@ -158,7 +158,16 @@ function repeatValues(values, count) {
 }
 
 export const START_TYPE_DEFINITIONS = {
-  G: { weight: 0.4, build: () => repeatValues([11, 12, 13, 14, 15], 20) },
+  G: {
+    weight: 0.4,
+    build: () => [
+      ...repeatValues([8], 5),
+      ...repeatValues([9, 10, 11], 10),
+      ...repeatValues([12, 13], 15),
+      ...repeatValues([14, 15, 16], 10),
+      ...repeatValues([17], 5),
+    ],
+  },
   H: {
     weight: 0.3,
     build: () => [
