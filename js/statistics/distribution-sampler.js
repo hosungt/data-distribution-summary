@@ -145,6 +145,51 @@ export function sampleRandomStartData({ n = 100, rand = Math.random } = {}) {
   return out;
 }
 
+// ---------- Level 2, 3 의 Start — 유형 G/H/I 중 가중 무작위 선택 ----------
+// G: 11~15 각 20개 (중앙 집중), 합 100
+// H: 0~4 각 10개 + 21~25 각 10개 (양 끝 분리), 합 100
+// I: 5~9 각 10개 + 16~20 각 10개 (가운데 비움), 합 100
+function repeatValues(values, count) {
+  const out = [];
+  for (const v of values) {
+    for (let i = 0; i < count; i++) out.push(v);
+  }
+  return out;
+}
+
+export const START_TYPE_DEFINITIONS = {
+  G: { weight: 0.4, build: () => repeatValues([11, 12, 13, 14, 15], 20) },
+  H: {
+    weight: 0.3,
+    build: () => [
+      ...repeatValues([0, 1, 2, 3, 4], 10),
+      ...repeatValues([21, 22, 23, 24, 25], 10),
+    ],
+  },
+  I: {
+    weight: 0.3,
+    build: () => [
+      ...repeatValues([5, 6, 7, 8, 9], 10),
+      ...repeatValues([16, 17, 18, 19, 20], 10),
+    ],
+  },
+};
+
+export function pickStartTypeKey(rand = Math.random) {
+  const r = rand();
+  let acc = 0;
+  for (const [key, def] of Object.entries(START_TYPE_DEFINITIONS)) {
+    acc += def.weight;
+    if (r < acc) return key;
+  }
+  return 'I'; // fallback
+}
+
+export function sampleTypedStartData({ rand = Math.random } = {}) {
+  const key = pickStartTypeKey(rand);
+  return { type: key, values: START_TYPE_DEFINITIONS[key].build() };
+}
+
 // Build Start Data:
 // - SC1, SC2 values: copied from goal as-is.
 // - Other 3 classes: re-shuffle each value to a uniformly random integer within its same class.

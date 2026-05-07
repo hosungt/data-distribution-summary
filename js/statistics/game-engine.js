@@ -13,6 +13,7 @@ import {
   sampleRandomGoalData,
   getFixedStartData,
   sampleRandomStartData,
+  sampleTypedStartData,
 } from './distribution-sampler.js';
 import { computeFullScore } from './score-formatter.js';
 import { LEVEL_CONFIG, MAX_LEVEL } from './level-config.js';
@@ -50,6 +51,8 @@ function sampleGameData(level, n, rand) {
     let startValues;
     if (config.startType === 'fixed') {
       startValues = getFixedStartData();
+    } else if (config.startType === 'typed-ghi') {
+      startValues = sampleTypedStartData({ rand }).values;
     } else if (config.startType === 'random') {
       startValues = sampleRandomStartData({ n, rand });
     } else {

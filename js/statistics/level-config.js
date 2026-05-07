@@ -21,7 +21,7 @@ export const LEVEL_CONFIG = {
   2: {
     scCount: 1,
     goalType: 'random',
-    startType: 'fixed',
+    startType: 'typed-ghi',
     scoreItems: ['mean', 'stdev', 'sc'],
     timeLimit: null,
     movesLimit: null,
@@ -30,7 +30,7 @@ export const LEVEL_CONFIG = {
   3: {
     scCount: 2,
     goalType: 'distribution',
-    startType: 'fixed',
+    startType: 'typed-ghi',
     scoreItems: ['mean', 'stdev', 'sc'],
     timeLimit: null,
     movesLimit: null,
