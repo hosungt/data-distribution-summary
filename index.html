@@ -142,16 +142,61 @@
 
     /* Mode selector overlay */
     .mode-selector { max-width: 960px; margin: 32px auto; padding: 0 16px; }
-    .mode-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
-    .mode-card {
-      background: var(--panel); color: var(--ink);
-      border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
-      padding: 18px; cursor: pointer; border: 2px solid transparent;
-      transition: border-color .15s, transform .15s;
+    .mode-section { margin-bottom: 24px; }
+    .mode-section-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin: 0 4px 10px; gap: 12px;
     }
-    .mode-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .mode-card h3 { margin: 0 0 6px; font-size: 18px; font-weight: 800; }
-    .mode-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .mode-section-header h2 {
+      margin: 0; font-size: 18px; font-weight: 800; color: #f3f4f6;
+      letter-spacing: .3px;
+    }
+    .mode-section-hint { color: #94a3b8; font-size: 12px; }
+
+    .level-grid {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(7, 1fr);
+    }
+    .level-card {
+      background: var(--panel); color: var(--ink);
+      border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.22);
+      padding: 14px 10px; cursor: pointer; border: 2px solid transparent;
+      text-align: center;
+      transition: border-color .15s, transform .15s, box-shadow .15s;
+      position: relative;
+    }
+    .level-card:hover:not(.locked) {
+      border-color: var(--accent); transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0,0,0,.28);
+    }
+    .level-card .level-num {
+      font-size: 18px; font-weight: 800; color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .level-card .level-tag {
+      font-size: 11px; color: var(--muted); line-height: 1.3;
+      min-height: 28px;
+    }
+    .level-card.locked {
+      cursor: not-allowed; opacity: 0.45; filter: grayscale(0.4);
+    }
+    .level-card.locked .lock-icon {
+      position: absolute; top: 6px; right: 8px;
+      font-size: 13px; color: var(--muted);
+    }
+    .level-card.passed::after {
+      content: '✓';
+      position: absolute; top: 6px; right: 8px;
+      font-size: 13px; color: var(--good); font-weight: 800;
+    }
+
+    /* Unlock banner inside result card */
+    .unlock-banner {
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      color: #fff; padding: 10px 14px; border-radius: 12px;
+      font-weight: 700; font-size: 14px; margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(22,163,74,.3);
+    }
 
     /* Result overlay */
     .result-overlay {
@@ -196,8 +241,11 @@
 
     @media (max-width: 840px) {
       .wrap { grid-template-columns: 1fr; }
-      .mode-grid { grid-template-columns: 1fr; }
+      .level-grid { grid-template-columns: repeat(4, 1fr); }
       .canvas-wrap { height: 220px; }
+    }
+    @media (max-width: 540px) {
+      .level-grid { grid-template-columns: repeat(3, 1fr); }
     }
     @media (max-width: 480px) {
       .stats-table { font-size: 11px; }
@@ -215,19 +263,20 @@
 
   <!-- Mode selector (shown when no ?contentMode= is present) -->
   <div class="mode-selector" id="modeSelectorView" style="display: none;">
-    <div class="mode-grid">
-      <div class="mode-card" data-mode="time">
-        <h3>최소 시간 모드</h3>
-        <p>5분(300초) 동안 점을 무제한으로 옮겨 통계량을 맞춥니다. 1초가 지날 때마다 추가 점수 +1.</p>
+    <div class="mode-section">
+      <div class="mode-section-header">
+        <h2>본 게임 (Level 1~7)</h2>
+        <div class="mode-section-hint">100점 미만으로 통과하면 다음 Level이 활성화됩니다</div>
       </div>
-      <div class="mode-card" data-mode="moves">
-        <h3>최소 횟수 모드</h3>
-        <p>점 이동을 미리 보고 '확정'으로 카운트합니다. 100회까지 가능, 1회 확정마다 추가 점수 +10.</p>
+      <div class="level-grid" id="mainLevelGrid"></div>
+    </div>
+
+    <div class="mode-section">
+      <div class="mode-section-header">
+        <h2>연습 모드</h2>
+        <div class="mode-section-hint">활성화된 Level만 자유롭게 연습 (점수 기록 별도)</div>
       </div>
-      <div class="mode-card" data-mode="practice">
-        <h3>연습 모드</h3>
-        <p>제한 없이 자유롭게 점을 옮기며 통계량 변화를 관찰합니다. 추가 점수는 없고 기본 점수만 기록됩니다.</p>
-      </div>
+      <div class="level-grid" id="practiceLevelGrid"></div>
     </div>
   </div>
 
@@ -293,482 +342,15 @@
   <div class="result-overlay" id="resultOverlay" style="display: none;">
     <div class="result-card">
       <h2 id="resultTitle">결과</h2>
+      <div id="unlockBanner" class="unlock-banner" style="display: none;"></div>
       <div class="total" id="resultTotal">—</div>
       <table class="breakdown-table" id="resultBreakdown"></table>
-      <div class="actions">
-        <button class="btn ghost" id="resultModeBtn">모드 선택으로</button>
-        <button class="btn primary" id="resultRetryBtn">다시 도전</button>
-      </div>
+      <div class="actions" id="resultActions"></div>
     </div>
   </div>
 
   <div class="toast-stack" id="toastStack"></div>
 
-  <script type="module">
-    import {
-      createGame, startGame, selectPoint, moveSelectedTo,
-      commitMove, cancelPreview, tickElapsed, finalize,
-      getDisplayValues, getDisplayStats,
-      TIME_LIMIT_MS, MOVES_LIMIT,
-    } from "./js/statistics/game-engine.js";
-    import {
-      setupDotGraphCanvas, drawScene, columnFromPx,
-      hitTestDot, buildDotPositions, RENDER, columnX, baselineY,
-    } from "./js/statistics/dot-graph-render.js";
-    import { roundToThird } from "./js/statistics/stats-core.js";
-    import { formatNumber, formatModeText, buildBreakdownLines } from "./js/statistics/score-formatter.js";
-
-    // ---------------------------------------------------------
-    // Mode routing
-    // ---------------------------------------------------------
-    const params = new URLSearchParams(window.location.search);
-    const requestedMode = params.get('contentMode');
-    const validModes = new Set(['time', 'moves', 'practice']);
-    const startMode = validModes.has(requestedMode) ? requestedMode : null;
-
-    const MODE_LABELS = {
-      time: '최소 시간 모드 (5분)',
-      moves: '최소 횟수 모드 (100회)',
-      practice: '연습 모드 (제한 없음)',
-    };
-
-    const modeSelectorView = document.getElementById('modeSelectorView');
-    const gameView = document.getElementById('gameView');
-    const modeSubtitle = document.getElementById('modeSubtitle');
-
-    if (!startMode) {
-      modeSelectorView.style.display = '';
-    } else {
-      gameView.style.display = '';
-      modeSubtitle.textContent = MODE_LABELS[startMode];
-      document.title = `자료의 분포와 요약 — ${modeSubtitle.textContent}`;
-    }
-
-    // Mode card clicks: navigate to ?contentMode=...
-    for (const card of document.querySelectorAll('.mode-card')) {
-      card.addEventListener('click', () => {
-        const m = card.getAttribute('data-mode');
-        const url = new URL(window.location.href);
-        url.searchParams.set('contentMode', m);
-        window.location.href = url.toString();
-      });
-    }
-
-    // ---------------------------------------------------------
-    // Toast helper
-    // ---------------------------------------------------------
-    const toastStack = document.getElementById('toastStack');
-    function toast(msg, kind = 'info', ms = 1800) {
-      const el = document.createElement('div');
-      el.className = `toast ${kind === 'info' ? '' : kind}`.trim();
-      el.textContent = msg;
-      toastStack.appendChild(el);
-      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; }, ms - 250);
-      setTimeout(() => el.remove(), ms);
-    }
-
-    // ---------------------------------------------------------
-    // Records (localStorage)
-    // ---------------------------------------------------------
-    const RECORDS_KEY_PREFIX = 'dds-test:scores:';
-    function loadRecords(mode) {
-      try {
-        const raw = localStorage.getItem(RECORDS_KEY_PREFIX + mode);
-        return raw ? JSON.parse(raw) : [];
-      } catch { return []; }
-    }
-    function saveRecord(mode, record) {
-      const list = loadRecords(mode);
-      list.push(record);
-      // Keep only the lowest 50 to bound storage
-      list.sort((a, b) => a.total - b.total);
-      const trimmed = list.slice(0, 50);
-      try {
-        localStorage.setItem(RECORDS_KEY_PREFIX + mode, JSON.stringify(trimmed));
-      } catch (err) {
-        console.warn('records save failed:', err);
-      }
-    }
-    function renderRecords(mode) {
-      const body = document.getElementById('recordsBody');
-      const records = loadRecords(mode).slice(0, 5);
-      if (!records.length) {
-        body.className = 'records-empty';
-        body.textContent = '아직 기록이 없습니다.';
-        return;
-      }
-      body.className = 'records-list';
-      body.innerHTML = '';
-      records.forEach((r, i) => {
-        const row = document.createElement('div');
-        row.className = 'record-row';
-        const date = new Date(r.completedAt);
-        const dateStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
-        row.innerHTML = `<span class="rank">${i+1}위</span>
-          <span><span class="meta">${dateStr} · 분포 ${r.distType} · 기본 ${Math.round(r.base)} + 추가 ${Math.round(r.extra)}</span></span>
-          <span class="score">${Math.round(r.total)}점</span>`;
-        body.appendChild(row);
-      });
-    }
-
-    if (startMode) renderRecords(startMode);
-
-    // ---------------------------------------------------------
-    // Game state and rendering
-    // ---------------------------------------------------------
-    let state = null;
-    let geometry = null;
-    let dragState = null; // { pointerId, startedAtSelect: bool }
-    let timerHandle = null;
-    let timerStart = null;
-
-    const canvas = document.getElementById('dotGraphCanvas');
-    const startBtn = document.getElementById('startBtn');
-    const endBtn = document.getElementById('endBtn');
-    const confirmBtn = document.getElementById('confirmBtn');
-    const cancelPreviewBtn = document.getElementById('cancelPreviewBtn');
-    const leftBtn = document.getElementById('leftBtn');
-    const rightBtn = document.getElementById('rightBtn');
-    const modeSelectBtn = document.getElementById('modeSelectBtn');
-    const hintLine = document.getElementById('hintLine');
-
-    function ensureGeometry() {
-      if (!canvas) return;
-      geometry = setupDotGraphCanvas(canvas);
-    }
-    window.addEventListener('resize', () => {
-      if (!state) return;
-      ensureGeometry();
-      render();
-    });
-
-    function setState(newState) {
-      state = newState;
-      render();
-    }
-
-    function render() {
-      if (!state || !geometry) return;
-      drawScene(canvas, state, geometry);
-      renderRightPanel();
-      renderClassInfoRow();
-      renderStatsTable();
-      renderControls();
-    }
-
-    function renderStatsTable() {
-      const goalStats = state.goalStats;
-      const dispStats = getDisplayStats(state);
-
-      document.getElementById('goalMean').textContent = formatNumber(roundToThird(goalStats.mean));
-      document.getElementById('goalMedian').textContent = formatNumber(goalStats.median, goalStats.median % 1 === 0 ? 0 : 1);
-      document.getElementById('goalMode').textContent = formatModeText(goalStats.mode);
-      document.getElementById('goalStdev').textContent = formatNumber(roundToThird(goalStats.stdev));
-      document.getElementById('goalMean').classList.remove('muted');
-      document.getElementById('goalMedian').classList.remove('muted');
-      document.getElementById('goalMode').classList.remove('muted');
-      document.getElementById('goalStdev').classList.remove('muted');
-
-      document.getElementById('curMean').textContent = formatNumber(roundToThird(dispStats.mean));
-      document.getElementById('curMedian').textContent = formatNumber(dispStats.median, dispStats.median % 1 === 0 ? 0 : 1);
-      document.getElementById('curMode').textContent = formatModeText(dispStats.mode);
-      document.getElementById('curStdev').textContent = formatNumber(roundToThird(dispStats.stdev));
-      document.getElementById('curMean').classList.remove('muted');
-      document.getElementById('curMedian').classList.remove('muted');
-      document.getElementById('curMode').classList.remove('muted');
-      document.getElementById('curStdev').classList.remove('muted');
-    }
-
-    function renderClassInfoRow() {
-      const row = document.getElementById('classInfoRow');
-      const sc = new Set(state.selectedClasses);
-      const dispStats = getDisplayStats(state);
-      const goalFreq = state.goalStats.classFreq;
-      const curFreq = dispStats.classFreq;
-      const labels = ['0~5','5~10','10~15','15~20','20~25'];
-      let html = '';
-      for (let i = 0; i < 5; i++) {
-        const isSc = sc.has(i);
-        if (isSc) {
-          const cur = curFreq[i];
-          const goal = goalFreq[i];
-          const match = cur === goal;
-          html += `<div class="class-info sc">
-            <div class="range">${labels[i]}</div>
-            <div class="count ${match ? 'match' : 'mismatch'}">현재 ${cur} / 목표 ${goal}</div>
-          </div>`;
-        } else {
-          html += `<div class="class-info">
-            <div class="range">${labels[i]}</div>
-          </div>`;
-        }
-      }
-      row.innerHTML = html;
-    }
-
-    function renderRightPanel() {
-      const chips = document.getElementById('metaChips');
-      const total = document.getElementById('scoreTotal');
-      const breakdown = document.getElementById('scoreBreakdown');
-      const score = state.score;
-      total.textContent = `${Math.round(score.total)}점`;
-      breakdown.textContent = `기본 ${Math.round(score.base)} + 추가 ${Math.round(score.extra)}`;
-
-      let chipHtml = '';
-      chipHtml += `<div class="chip">분포 <b>${state.goalDistType}</b></div>`;
-      if (state.mode === 'time') {
-        const remainMs = Math.max(0, TIME_LIMIT_MS - state.elapsedMs);
-        const minutes = Math.floor(remainMs / 60000);
-        const seconds = Math.floor((remainMs % 60000) / 1000);
-        const isLow = remainMs < 30000;
-        chipHtml += `<div class="chip ${isLow ? 'warn' : ''}">남은 시간 <b>${minutes}:${String(seconds).padStart(2,'0')}</b></div>`;
-      } else if (state.mode === 'moves') {
-        const remain = MOVES_LIMIT - state.commits;
-        const isLow = remain < 10;
-        chipHtml += `<div class="chip ${isLow ? 'warn' : ''}">남은 횟수 <b>${remain}</b></div>`;
-        chipHtml += `<div class="chip">확정 <b>${state.commits}</b></div>`;
-      } else {
-        chipHtml += `<div class="chip">제한 없음</div>`;
-      }
-      chips.innerHTML = chipHtml;
-    }
-
-    function renderControls() {
-      const playing = state.startedAt && !state.finished;
-      startBtn.disabled = playing;
-      startBtn.textContent = state.startedAt ? '진행 중' : '게임 시작';
-      endBtn.disabled = !playing;
-      leftBtn.disabled = !playing || state.selectedPointIdx == null;
-      rightBtn.disabled = !playing || state.selectedPointIdx == null;
-      if (state.mode === 'moves') {
-        confirmBtn.style.display = '';
-        confirmBtn.disabled = !playing || !state.preview;
-        cancelPreviewBtn.style.display = state.preview ? '' : 'none';
-      } else {
-        confirmBtn.style.display = 'none';
-        cancelPreviewBtn.style.display = 'none';
-      }
-      if (!state.startedAt) {
-        hintLine.textContent = '게임 시작 버튼을 눌러 자료를 생성하세요.';
-      } else if (state.finished) {
-        hintLine.textContent = '게임이 종료됐어요.';
-      } else if (state.selectedPointIdx == null) {
-        hintLine.textContent = state.mode === 'moves'
-          ? '점을 클릭해 선택한 뒤 옮기면 미리보기로 표시돼요. 확정을 눌러야 1회로 카운트돼요.'
-          : '점을 클릭하면 선택돼요. 선택 후 좌우 버튼 / 화살표 키 / 드래그로 옮길 수 있어요.';
-      } else if (state.mode === 'moves' && state.preview) {
-        hintLine.textContent = `미리보기: ${state.preview.fromX} → ${state.preview.toX}. 확정 또는 취소를 선택하세요.`;
-      } else {
-        hintLine.textContent = '좌우 버튼 / 화살표 키 / 드래그로 옮기세요. 다른 점을 클릭하면 선택이 바뀌어요.';
-      }
-    }
-
-    // ---------------------------------------------------------
-    // Game lifecycle
-    // ---------------------------------------------------------
-    function newGame() {
-      const initial = createGame({ mode: startMode, n: 100 });
-      state = initial;
-      ensureGeometry();
-      render();
-    }
-
-    function startCurrentGame() {
-      if (!state) return;
-      const next = startGame(state);
-      timerStart = Date.now();
-      setState(next);
-      if (state.mode === 'time') startTicker();
-      const startMessages = {
-        time: '5분 안에 통계량을 맞춰 보세요!',
-        moves: '점을 옮긴 뒤 확정을 눌러 카운트하세요. 100회까지 가능합니다.',
-        practice: '자유롭게 점을 옮기며 통계량 변화를 관찰해 보세요.',
-      };
-      toast(startMessages[state.mode]);
-    }
-
-    function startTicker() {
-      stopTicker();
-      timerHandle = setInterval(() => {
-        if (!state || state.finished) { stopTicker(); return; }
-        const elapsed = Date.now() - timerStart;
-        const next = tickElapsed(state, elapsed);
-        setState(next);
-        if (next.finished) {
-          stopTicker();
-          showResult();
-        }
-      }, 250);
-    }
-    function stopTicker() {
-      if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
-    }
-
-    function endNow() {
-      if (!state || state.finished) return;
-      stopTicker();
-      const next = finalize(state);
-      setState(next);
-      showResult();
-    }
-
-    function showResult() {
-      const overlay = document.getElementById('resultOverlay');
-      const title = document.getElementById('resultTitle');
-      const totalEl = document.getElementById('resultTotal');
-      const tableEl = document.getElementById('resultBreakdown');
-      title.textContent = `${MODE_LABELS[state.mode]} 결과`;
-      totalEl.textContent = `${Math.round(state.score.total)}점`;
-      const lines = buildBreakdownLines(state.score);
-      tableEl.innerHTML = lines.map((l) => `
-        <tr>
-          <td class="label">${l.label}</td>
-          <td class="value">${l.value}</td>
-          <td class="points">+${Math.round(l.points)}</td>
-        </tr>
-      `).join('') + `<tr>
-        <td class="label"><b>합계</b></td>
-        <td class="value"></td>
-        <td class="points"><b>${Math.round(state.score.total)}점</b></td>
-      </tr>`;
-      overlay.style.display = '';
-
-      // Persist locally
-      saveRecord(state.mode, {
-        total: state.score.total,
-        base: state.score.base,
-        extra: state.score.extra,
-        completedAt: Date.now(),
-        distType: state.goalDistType,
-      });
-      renderRecords(state.mode);
-    }
-
-    document.getElementById('resultModeBtn').addEventListener('click', () => {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('contentMode');
-      window.location.href = url.toString();
-    });
-    document.getElementById('resultRetryBtn').addEventListener('click', () => {
-      document.getElementById('resultOverlay').style.display = 'none';
-      newGame();
-      startCurrentGame();
-    });
-
-    // ---------------------------------------------------------
-    // Initial UI (before first game)
-    // ---------------------------------------------------------
-    function setInitialUi() {
-      startBtn.disabled = false;
-      startBtn.textContent = '게임 시작';
-      endBtn.disabled = true;
-      leftBtn.disabled = true;
-      rightBtn.disabled = true;
-      confirmBtn.disabled = true;
-      cancelPreviewBtn.style.display = 'none';
-      hintLine.textContent = '게임 시작 버튼을 눌러 자료를 생성하세요.';
-    }
-
-    // ---------------------------------------------------------
-    // Event wiring
-    // ---------------------------------------------------------
-    if (startMode) {
-      setInitialUi();
-
-      startBtn.addEventListener('click', () => {
-        if (state && state.startedAt && !state.finished) return;
-        newGame();
-        startCurrentGame();
-      });
-      endBtn.addEventListener('click', endNow);
-      modeSelectBtn.addEventListener('click', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('contentMode');
-        window.location.href = url.toString();
-      });
-      confirmBtn.addEventListener('click', () => {
-        if (!state.preview) return;
-        const next = commitMove(state);
-        setState(next);
-        if (next.finished) showResult();
-      });
-      cancelPreviewBtn.addEventListener('click', () => {
-        const next = cancelPreview(state);
-        setState(next);
-      });
-
-      // Arrow buttons
-      leftBtn.addEventListener('click', () => moveSelected(-1));
-      rightBtn.addEventListener('click', () => moveSelected(+1));
-
-      // Keyboard arrows when canvas focused
-      canvas.addEventListener('keydown', (e) => {
-        if (!state || !state.startedAt || state.finished) return;
-        if (state.selectedPointIdx == null) return;
-        if (e.key === 'ArrowLeft') { moveSelected(-1); e.preventDefault(); }
-        else if (e.key === 'ArrowRight') { moveSelected(+1); e.preventDefault(); }
-      });
-
-      // Pointer interactions
-      canvas.addEventListener('pointerdown', onPointerDown);
-      canvas.addEventListener('pointermove', onPointerMove);
-      canvas.addEventListener('pointerup', onPointerUp);
-      canvas.addEventListener('pointercancel', onPointerUp);
-      canvas.addEventListener('pointerleave', onPointerUp);
-    }
-
-    function moveSelected(delta) {
-      if (!state || !state.startedAt || state.finished) return;
-      if (state.selectedPointIdx == null) return;
-      const curX = state.preview ? state.preview.toX : state.values[state.selectedPointIdx];
-      const next = moveSelectedTo(state, curX + delta);
-      setState(next);
-      if (next.finished) showResult();
-    }
-
-    function getCanvasXY(e) {
-      const rect = canvas.getBoundingClientRect();
-      return { px: e.clientX - rect.left, py: e.clientY - rect.top };
-    }
-
-    function onPointerDown(e) {
-      if (!state || !state.startedAt || state.finished) return;
-      canvas.focus();
-      canvas.setPointerCapture(e.pointerId);
-      const { px, py } = getCanvasXY(e);
-      const positions = buildDotPositions(state);
-      const hit = hitTestDot(positions, geometry, px, py);
-      if (hit != null) {
-        // Select hit point. In moves mode, selecting a different point cancels prior preview.
-        const next = selectPoint(state, hit);
-        setState(next);
-        dragState = { pointerId: e.pointerId, dragging: true, lastColumn: state.values[hit] };
-      } else {
-        // Click empty space: deselect
-        if (state.selectedPointIdx != null) {
-          setState(selectPoint(state, null));
-        }
-        dragState = null;
-      }
-    }
-
-    function onPointerMove(e) {
-      if (!dragState || dragState.pointerId !== e.pointerId) return;
-      if (!state || state.finished || state.selectedPointIdx == null) return;
-      const { px } = getCanvasXY(e);
-      const col = columnFromPx(px, geometry.w);
-      if (col === dragState.lastColumn) return;
-      dragState.lastColumn = col;
-      const next = moveSelectedTo(state, col);
-      setState(next);
-      if (next.finished) showResult();
-    }
-
-    function onPointerUp(e) {
-      if (!dragState || dragState.pointerId !== e.pointerId) return;
-      try { canvas.releasePointerCapture(e.pointerId); } catch {}
-      dragState = null;
-    }
-  </script>
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>

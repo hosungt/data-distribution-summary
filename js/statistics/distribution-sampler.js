@@ -100,12 +100,49 @@ export function sampleGoalData({ n = 100, type = null, rand = Math.random } = {}
   return { type: t, frequencies: freq, values };
 }
 
-// Pick 2 distinct class indices (0..4) uniformly at random.
-export function pickSelectedClasses(rand = Math.random) {
-  const a = Math.floor(rand() * 5);
-  let b = Math.floor(rand() * 4);
-  if (b >= a) b += 1;
-  return a < b ? [a, b] : [b, a];
+// Pick `count` distinct class indices (0..4) uniformly at random.
+// count = 0 → []  (Level 1)
+// count = 1 → [k]  (Level 2)
+// count = 2 → [a, b] sorted (Level 3~7)
+export function pickSelectedClasses({ count = 2, rand = Math.random } = {}) {
+  if (count <= 0) return [];
+  if (count === 1) return [Math.floor(rand() * 5)];
+  // count >= 2: sample without replacement from 0..4
+  const pool = [0, 1, 2, 3, 4];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.min(count, 5)).sort((a, b) => a - b);
+}
+
+// Level 1, 2 의 Goal — 0~25 정수 100개를 uniform 으로 완전 랜덤.
+// 반환 형식은 sampleGoalData 와 통일 (type=null, frequencies=null, values).
+export function sampleRandomGoalData({ n = 100, rand = Math.random } = {}) {
+  const values = [];
+  for (let i = 0; i < n; i++) {
+    values.push(Math.floor(rand() * 26)); // 0..25
+  }
+  return { type: null, frequencies: null, values };
+}
+
+// Level 1~3 의 Start — 1~24 각 4개 + 0,25 각 2개 (총 100개) 고정 배열.
+// 매 호출 새 배열 (mutate-safe).
+export function getFixedStartData() {
+  const out = [];
+  out.push(0, 0);
+  for (let v = 1; v <= 24; v++) out.push(v, v, v, v);
+  out.push(25, 25);
+  return out; // length 100
+}
+
+// Level 4~7 의 Start — 0~25 정수 100개 완전 랜덤.
+export function sampleRandomStartData({ n = 100, rand = Math.random } = {}) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push(Math.floor(rand() * 26));
+  }
+  return out;
 }
 
 // Build Start Data:

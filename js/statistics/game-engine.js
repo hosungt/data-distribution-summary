@@ -1,65 +1,105 @@
 // Game state machine. No DOM, no Firebase. All mutations return new state.
+//
+// Level 1~7 + 연습모드(Level 1~7) 시스템. LEVEL_CONFIG 가 게임 동작의 단일 진실 원천.
+// state.config.movesLimit 유무로 입력 모드를 판별:
+//   - movesLimit === null  → Level 1~3: 점 이동 즉시 반영
+//   - movesLimit !== null  → Level 4~7: preview → commit 2단계 (확정 횟수 카운트)
 
 import { computeStats, modesEqual } from './stats-core.js';
 import {
   sampleGoalData,
   pickSelectedClasses,
   rearrangeToStartData,
+  sampleRandomGoalData,
+  getFixedStartData,
+  sampleRandomStartData,
 } from './distribution-sampler.js';
 import { computeFullScore } from './score-formatter.js';
+import { LEVEL_CONFIG, MAX_LEVEL } from './level-config.js';
 
-export const TIME_LIMIT_MS = 5 * 60 * 1000; // 300_000
-export const MOVES_LIMIT = 100;
-export const VALID_MODES = new Set(['time', 'moves', 'practice']);
+// 기존 호환성용 — 외부에서 default 값을 참조할 수 있도록 export 유지.
+// 실제 게임 로직은 state.config.timeLimit / state.config.movesLimit 를 본다.
+export const TIME_LIMIT_MS = 10 * 60 * 1000;  // Level 7 default 10분
+export const MOVES_LIMIT = 100;                // Level 4~7 default
 
 const MAX_SAMPLE_ATTEMPTS = 200;
 
-// Generate goal + SC + start such that median AND mode differ between goal and start.
-// Falls back to last attempt if MAX_SAMPLE_ATTEMPTS reached (extremely unlikely).
-function sampleGameData(n, rand) {
+function usesPreview(config) {
+  return config.movesLimit != null;
+}
+
+// Generate goal + SC + start for a given Level.
+// Level 5~7 ('median' 또는 'mode' 가 scoreItems 에 포함) 인 경우, goal 과 start 의 median·mode 가
+// 다르도록 재시도 (게임 시작 시 체감 차이 확보용).
+function sampleGameData(level, n, rand) {
+  const config = LEVEL_CONFIG[level];
+  const requireMedianDiffer = config.scoreItems.includes('median');
+  const requireModeDiffer = config.scoreItems.includes('mode');
+  const needsRetry = requireMedianDiffer || requireModeDiffer;
+
   let last = null;
-  for (let i = 0; i < MAX_SAMPLE_ATTEMPTS; i++) {
-    const goal = sampleGoalData({ n, rand });
+  const attempts = needsRetry ? MAX_SAMPLE_ATTEMPTS : 1;
+
+  for (let i = 0; i < attempts; i++) {
+    const goal = config.goalType === 'random'
+      ? sampleRandomGoalData({ n, rand })
+      : sampleGoalData({ n, rand });
     const goalStats = computeStats(goal.values);
-    const selectedClasses = pickSelectedClasses(rand);
-    const startValues = rearrangeToStartData(goal.values, selectedClasses, rand);
+    const selectedClasses = pickSelectedClasses({ count: config.scCount, rand });
+
+    let startValues;
+    if (config.startType === 'fixed') {
+      startValues = getFixedStartData();
+    } else if (config.startType === 'random') {
+      startValues = sampleRandomStartData({ n, rand });
+    } else {
+      // 미사용 분기 — 안전장치
+      startValues = rearrangeToStartData(goal.values, selectedClasses, rand);
+    }
     const startStats = computeStats(startValues);
     last = { goal, goalStats, selectedClasses, startValues, startStats };
-    const medianDiffers = goalStats.median !== startStats.median;
-    const modeDiffers = !modesEqual(goalStats.mode, startStats.mode);
-    if (medianDiffers && modeDiffers) return last;
+
+    if (!needsRetry) return last;
+    const medianOk = !requireMedianDiffer || goalStats.median !== startStats.median;
+    const modeOk = !requireModeDiffer || !modesEqual(goalStats.mode, startStats.mode);
+    if (medianOk && modeOk) return last;
   }
-  console.warn('sampleGameData: could not satisfy median+mode mismatch within attempts');
+  if (needsRetry) {
+    console.warn(`sampleGameData: median/mode 재시도 한도 초과 (level ${level})`);
+  }
   return last;
 }
 
-// Create a new game. mode: 'time' | 'moves' | 'practice'. n: variate count (default 100).
-// rand: optional Math.random replacement for seeded testing.
-export function createGame({ mode = 'time', n = 100, rand = Math.random } = {}) {
-  if (!VALID_MODES.has(mode)) {
-    throw new Error(`Unknown mode: ${mode}`);
+// Create a new game.
+// level: 1..MAX_LEVEL, isPractice: 본 게임 진행도(잠금)에 영향 줄지 여부.
+export function createGame({ level = 1, isPractice = false, n = 100, rand = Math.random } = {}) {
+  if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL) {
+    throw new Error(`Unknown level: ${level}`);
   }
-  const { goal, goalStats, selectedClasses, startValues, startStats } = sampleGameData(n, rand);
+  const config = LEVEL_CONFIG[level];
+  const { goal, goalStats, selectedClasses, startValues, startStats } = sampleGameData(level, n, rand);
 
   const state = {
-    mode,
+    level,
+    isPractice,
+    config,
     n,
     createdAt: Date.now(),
-    startedAt: null, // set by start()
+    startedAt: null,
     endedAt: null,
     finished: false,
     goalValues: goal.values.slice(),
-    goalDistType: goal.type,
+    goalDistType: goal.type,  // null for goalType='random'
     goalStats,
     selectedClasses,
-    values: startValues,           // committed values
-    currentStats: startStats,      // stats of committed values
-    preview: null,                 // { pointIdx, fromX, toX, previewStats } for moves mode only
+    values: startValues,
+    currentStats: startStats,
+    preview: null,
     selectedPointIdx: null,
     commits: 0,
     elapsedMs: 0,
   };
-  state.score = computeFullScore(state, { elapsedMs: 0, commits: 0 });
+  state.score = computeFullScore(state);
   return state;
 }
 
@@ -68,7 +108,6 @@ export function startGame(state, now = Date.now()) {
   return { ...state, startedAt: now };
 }
 
-// Compute display values: committed + preview overlay (moves mode).
 export function getDisplayValues(state) {
   if (!state.preview) return state.values;
   const v = state.values.slice();
@@ -76,21 +115,18 @@ export function getDisplayValues(state) {
   return v;
 }
 
-// Compute display stats: previewStats if active, else currentStats.
 export function getDisplayStats(state) {
   if (state.preview) return state.preview.previewStats;
   return state.currentStats;
 }
 
-// Select a point by its index in values array.
-// In moves mode: cancels any active preview belonging to a different point.
 export function selectPoint(state, pointIdx) {
   if (state.finished) return state;
   if (pointIdx == null) {
     return { ...state, selectedPointIdx: null, preview: null };
   }
-  // Switching point in moves mode cancels prior preview.
-  if (state.mode === 'moves' && state.preview && state.preview.pointIdx !== pointIdx) {
+  // preview 사용 모드(Level 4~7)에서 다른 점 선택 시 기존 preview 취소.
+  if (usesPreview(state.config) && state.preview && state.preview.pointIdx !== pointIdx) {
     return { ...state, selectedPointIdx: pointIdx, preview: null };
   }
   return { ...state, selectedPointIdx: pointIdx };
@@ -100,26 +136,25 @@ function clampX(x) {
   return Math.max(0, Math.min(25, Math.round(x)));
 }
 
-// Move the currently selected point.
-//   - time mode: applied immediately (mutates committed values, recomputes currentStats).
-//   - moves mode: stored as preview, currentStats unchanged.
-// `toX` is rounded and clamped to [0, 25].
+// 점 이동.
+//   - Level 1~3 (preview 미사용): 즉시 반영, currentStats 갱신.
+//   - Level 4~7 (preview 사용):   preview 로 저장, currentStats 는 그대로.
 export function moveSelectedTo(state, toX) {
   if (state.finished) return state;
   if (state.selectedPointIdx == null) return state;
   const target = clampX(toX);
 
-  if (state.mode === 'time' || state.mode === 'practice') {
+  if (!usesPreview(state.config)) {
     if (state.values[state.selectedPointIdx] === target) return state;
     const v = state.values.slice();
     v[state.selectedPointIdx] = target;
     const stats = computeStats(v);
     const next = { ...state, values: v, currentStats: stats };
-    next.score = computeFullScore(next, { elapsedMs: state.elapsedMs, commits: state.commits });
+    next.score = computeFullScore(next);
     return next;
   }
 
-  // moves mode -> preview
+  // preview 사용 모드
   const fromX = state.values[state.selectedPointIdx];
   if (target === fromX) {
     return { ...state, preview: null };
@@ -131,17 +166,14 @@ export function moveSelectedTo(state, toX) {
     ...state,
     preview: { pointIdx: state.selectedPointIdx, fromX, toX: target, previewStats },
   };
-  next.score = computeFullScore(
-    { ...next, currentStats: previewStats },
-    { elapsedMs: state.elapsedMs, commits: state.commits }
-  );
+  next.score = computeFullScore({ ...next, currentStats: previewStats });
   return next;
 }
 
-// Commit the active preview (moves mode). Increments commits.
+// Commit active preview (Level 4~7). Increments commits, finishes if movesLimit reached.
 export function commitMove(state) {
   if (state.finished) return state;
-  if (state.mode !== 'moves' || !state.preview) return state;
+  if (!usesPreview(state.config) || !state.preview) return state;
   const v = state.values.slice();
   v[state.preview.pointIdx] = state.preview.toX;
   const stats = computeStats(v);
@@ -151,47 +183,42 @@ export function commitMove(state) {
     values: v,
     currentStats: stats,
     preview: null,
-    selectedPointIdx: state.preview.pointIdx, // keep the same point selected
+    selectedPointIdx: state.preview.pointIdx,
     commits,
   };
-  if (commits >= MOVES_LIMIT) {
+  if (state.config.movesLimit != null && commits >= state.config.movesLimit) {
     next.finished = true;
     next.endedAt = Date.now();
   }
-  next.score = computeFullScore(next, { elapsedMs: state.elapsedMs, commits });
+  next.score = computeFullScore(next);
   return next;
 }
 
-// Cancel any active preview (moves mode).
 export function cancelPreview(state) {
   if (!state.preview) return state;
   const next = { ...state, preview: null };
-  next.score = computeFullScore(next, { elapsedMs: state.elapsedMs, commits: state.commits });
+  next.score = computeFullScore(next);
   return next;
 }
 
-// Update elapsed time (time mode). Auto-finishes when limit reached.
+// 시간 갱신. Level 7 (timeLimit 설정) 의 경우 한도 도달 시 자동 종료.
 export function tickElapsed(state, elapsedMs) {
   if (state.finished) return state;
   let next = { ...state, elapsedMs };
-  if (state.mode === 'time' && elapsedMs >= TIME_LIMIT_MS) {
-    next.elapsedMs = TIME_LIMIT_MS;
+  const limit = state.config.timeLimit;
+  if (limit != null && elapsedMs >= limit) {
+    next.elapsedMs = limit;
     next.finished = true;
     next.endedAt = Date.now();
   }
-  next.score = computeFullScore(
-    { ...next, currentStats: getDisplayStats(next) },
-    { elapsedMs: next.elapsedMs, commits: next.commits }
-  );
+  next.score = computeFullScore({ ...next, currentStats: getDisplayStats(next) });
   return next;
 }
 
-// User clicks "여기서 끝내기".
 export function finalize(state) {
   if (state.finished) return state;
-  // In moves mode, cancel any pending preview before finalizing.
   let next = state.preview ? cancelPreview(state) : state;
   next = { ...next, finished: true, endedAt: Date.now() };
-  next.score = computeFullScore(next, { elapsedMs: next.elapsedMs, commits: next.commits });
+  next.score = computeFullScore(next);
   return next;
 }
