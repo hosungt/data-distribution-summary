@@ -26,20 +26,32 @@
 
 ## 실행법
 
-브라우저로 `index.html` 을 직접 엽니다 (정적 파일, 빌드 불필요).
+ES Modules를 사용하므로 `file://` 직접 열기는 일부 브라우저에서 막힙니다. 정적 서버로 띄워서 접속해 주세요.
 
-URL 파라미터로 모드 직행 가능:
-- `index.html?contentMode=time`
-- `index.html?contentMode=moves`
-- `index.html?contentMode=practice`
-- 파라미터 없으면 모드 선택 화면
+### Windows: `serve.bat` 더블클릭 (권장)
 
-> ES Modules를 사용하므로 `file://` 직접 열기가 일부 브라우저에서 막힐 수 있습니다. 그 경우 간단한 정적 서버를 띄우세요:
-> ```
-> npx serve .
-> # 또는
-> python -m http.server 8000
-> ```
+저장소 루트의 [serve.bat](serve.bat) 을 탐색기에서 더블클릭하면 8088 포트에 서버가 뜹니다. (Node.js 필요. 첫 실행 시 `http-server` 패키지가 자동 다운로드되고 그 후엔 캐시에서 즉시 실행됩니다.)
+
+서버 종료는 cmd 창을 닫거나 `Ctrl+C`.
+
+### 명령으로 직접 띄우기 (모든 OS)
+
+저장소 폴더에서:
+
+```
+npx --yes http-server . -p 8088 -c-1
+```
+
+`-c-1` 은 캐싱 비활성화(개발 중 변경사항 즉시 반영용).
+
+### 접속 URL
+
+| 용도 | 주소 |
+|---|---|
+| 모드 선택 화면 | http://localhost:8088/ |
+| time 모드 직행 | http://localhost:8088/?contentMode=time |
+| moves 모드 직행 | http://localhost:8088/?contentMode=moves |
+| practice 모드 직행 | http://localhost:8088/?contentMode=practice |
 
 ## 데이터 저장
 
