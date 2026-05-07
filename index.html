@@ -290,20 +290,25 @@
 
       <table class="stats-table">
         <thead>
-          <tr><th></th><th>평균</th><th>중앙값</th><th>최빈값</th><th>표준편차</th></tr>
+          <tr><th></th>
+            <th data-stat-col="mean">평균</th>
+            <th data-stat-col="median">중앙값</th>
+            <th data-stat-col="mode">최빈값</th>
+            <th data-stat-col="stdev">표준편차</th>
+          </tr>
         </thead>
         <tbody>
           <tr><th>현재</th>
-            <td id="curMean" class="muted">—</td>
-            <td id="curMedian" class="muted">—</td>
-            <td id="curMode" class="muted">—</td>
-            <td id="curStdev" class="muted">—</td>
+            <td id="curMean" class="muted" data-stat-col="mean">—</td>
+            <td id="curMedian" class="muted" data-stat-col="median">—</td>
+            <td id="curMode" class="muted" data-stat-col="mode">—</td>
+            <td id="curStdev" class="muted" data-stat-col="stdev">—</td>
           </tr>
           <tr><th>목표</th>
-            <td id="goalMean" class="muted">—</td>
-            <td id="goalMedian" class="muted">—</td>
-            <td id="goalMode" class="muted">—</td>
-            <td id="goalStdev" class="muted">—</td>
+            <td id="goalMean" class="muted" data-stat-col="mean">—</td>
+            <td id="goalMedian" class="muted" data-stat-col="median">—</td>
+            <td id="goalMode" class="muted" data-stat-col="mode">—</td>
+            <td id="goalStdev" class="muted" data-stat-col="stdev">—</td>
           </tr>
         </tbody>
       </table>

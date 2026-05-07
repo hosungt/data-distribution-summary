@@ -254,6 +254,17 @@ function render() {
 }
 
 function renderStatsTable() {
+  // Level 의 scoreItems 에 포함된 컬럼만 노출.
+  // mean, stdev 는 모든 Level 에 포함되므로 항상 표시.
+  // median: Level 5 부터, mode: Level 6 부터.
+  const items = state.config.scoreItems;
+  for (const col of ['mean', 'median', 'mode', 'stdev']) {
+    const show = items.includes(col);
+    document.querySelectorAll(`[data-stat-col="${col}"]`).forEach((el) => {
+      el.style.display = show ? '' : 'none';
+    });
+  }
+
   const goalStats = state.goalStats;
   const dispStats = getDisplayStats(state);
 
