@@ -33,6 +33,7 @@ function parseMode(raw) {
 // ---------------------------------------------------------
 const KEY_PREFIX = 'dds-level1:scores:';
 const UNLOCK_KEY = 'dds-level1:unlocked-level';
+const UNLOCK_ALL_KEY = 'dds-level1:unlock-all';
 
 function getUnlockedLevel() {
   const v = Number(localStorage.getItem(UNLOCK_KEY) || '1');
@@ -42,8 +43,19 @@ function getUnlockedLevel() {
 function setUnlockedLevel(n) {
   localStorage.setItem(UNLOCK_KEY, String(Math.max(1, Math.min(MAX_LEVEL, n))));
 }
+// 임시 운영 스위치: 켜져 있으면 모든 Level 접근 가능 + 잠금 해제 알림 무효화.
+// 미래에 관리자 페이지로 옮길 예정. 기본값 ON.
+function getUnlockAll() {
+  const v = localStorage.getItem(UNLOCK_ALL_KEY);
+  if (v === null) return true;
+  return v === 'true';
+}
+function setUnlockAll(on) {
+  localStorage.setItem(UNLOCK_ALL_KEY, on ? 'true' : 'false');
+}
 function tryUnlockNextLevel(state) {
   if (state.isPractice) return null;
+  if (getUnlockAll()) return null;
   const total = state.score.total;
   const cur = getUnlockedLevel();
   if (state.level === cur && total < LEVEL_PASS_THRESHOLD && cur < MAX_LEVEL) {
@@ -105,6 +117,7 @@ const initialUnlocked = getUnlockedLevel();
 
 function isUnlocked(level) {
   // 본 게임 / 연습 모두 unlocked-level 까지 활성
+  if (getUnlockAll()) return true;
   return level <= getUnlockedLevel();
 }
 
@@ -135,14 +148,15 @@ function renderLevelSelector() {
   const cur = getUnlockedLevel();
   for (const level of LEVEL_LIST) {
     const config = LEVEL_CONFIG[level];
+    const locked = !isUnlocked(level);
     mainGrid.appendChild(createLevelCard({
       level, isPractice: false, config,
-      locked: level > cur,
+      locked,
       passed: level < cur,
     }));
     practiceGrid.appendChild(createLevelCard({
       level, isPractice: true, config,
-      locked: level > cur,
+      locked,
       passed: false,
     }));
   }
@@ -158,10 +172,21 @@ if (!validSlot) {
   }
   modeSelectorView.style.display = '';
   renderLevelSelector();
+  bindUnlockAllToggle();
 } else {
   gameView.style.display = '';
   modeSubtitle.textContent = modeLabel(slot);
   document.title = `자료의 분포와 요약 — ${modeSubtitle.textContent}`;
+}
+
+function bindUnlockAllToggle() {
+  const toggle = document.getElementById('unlockAllToggle');
+  if (!toggle) return;
+  toggle.checked = getUnlockAll();
+  toggle.addEventListener('change', () => {
+    setUnlockAll(toggle.checked);
+    renderLevelSelector();
+  });
 }
 
 // ---------------------------------------------------------

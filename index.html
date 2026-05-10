@@ -153,6 +153,17 @@
     }
     .mode-section-hint { color: #94a3b8; font-size: 12px; }
 
+    .mode-prefs-row {
+      display: flex; align-items: center; justify-content: flex-end;
+      gap: 12px; margin: 0 4px 18px; color: #cbd5e1; font-size: 12px;
+    }
+    .mode-pref-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      cursor: pointer; user-select: none;
+    }
+    .mode-pref-toggle input { accent-color: var(--accent); cursor: pointer; }
+    .mode-prefs-row .mode-section-hint { color: #94a3b8; }
+
     .level-grid {
       display: grid; gap: 10px;
       grid-template-columns: repeat(7, 1fr);
@@ -263,6 +274,14 @@
 
   <!-- Mode selector (shown when no ?contentMode= is present) -->
   <div class="mode-selector" id="modeSelectorView" style="display: none;">
+    <div class="mode-prefs-row">
+      <label class="mode-pref-toggle">
+        <input type="checkbox" id="unlockAllToggle" />
+        <span>전체 잠금 해제 (임시)</span>
+      </label>
+      <span class="mode-section-hint">관리자 페이지 이전 전 임시 토글</span>
+    </div>
+
     <div class="mode-section">
       <div class="mode-section-header">
         <h2>본 게임 (Level 1~7)</h2>
